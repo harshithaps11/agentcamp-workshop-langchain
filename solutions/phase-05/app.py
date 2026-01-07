@@ -70,13 +70,13 @@ Current date: {date.today().strftime("%B %d, %Y")}
 def get_llm():
     """
     Create and return the LLM client.
-    
+
     Same configuration as all previous phases:
     - ChatOpenAI pointed at GitHub Models endpoint
     """
     return ChatOpenAI(
-        model="openai/gpt-4.1-nano",       # Same model as previous phases
-        api_key=os.getenv("GITHUB_TOKEN"), # Same auth as previous phases
+        model="openai/gpt-4.1-nano",  # Same model as previous phases
+        api_key=os.getenv("GITHUB_TOKEN"),  # Same auth as previous phases
         base_url="https://models.github.ai/inference",  # Same endpoint
         temperature=0.7,
     )
@@ -85,11 +85,11 @@ def get_llm():
 async def create_assistant_agent():
     """
     Create a LangChain agent WITH tools.
-    
+
     This is the key difference from Phase 4:
     - Phase 4: tools=[]     (no tools, just chat)
     - Phase 5: tools=TOOLS  (can take actions!)
-    
+
     The agent can now:
     - Reason about tasks (same as Phase 4)
     - Decide WHEN to use tools based on user queries
@@ -97,14 +97,14 @@ async def create_assistant_agent():
     - Iterate towards solutions using multiple tool calls if needed
     """
     llm = get_llm()
-    
+
     # Create agent WITH tools (the key difference from Phase 4!)
     agent = create_agent(
         model=llm,
         tools=TOOLS,  # CHANGED from [] to TOOLS!
         system_prompt=SYSTEM_PROMPT,
     )
-    
+
     return agent
 
 
@@ -112,16 +112,16 @@ async def create_assistant_agent():
 async def start():
     """
     Initialize the chat session.
-    
+
     Same pattern as Phase 3 and 4, creating the agent and storing in session.
     The welcome message now mentions the tool capabilities!
     """
     agent = await create_assistant_agent()
-    
+
     # Store agent in session (same pattern as Phase 3 and 4)
     cl.user_session.set("agent", agent)
     cl.user_session.set("chat_history", [])
-    
+
     # Updated welcome message to mention tool capabilities
     await cl.Message(
         content="👋 Hi! I'm Aria, your AI assistant. I can now check the weather for you! Try asking: 'What's the weather in Paris?'"
@@ -132,12 +132,12 @@ async def start():
 async def main(message: cl.Message):
     """
     Handle incoming messages using the agent.
-    
+
     This is more complex than Phase 4 because we need to:
     1. Stream the agent's responses (same as Phase 4)
     2. Detect and display tool calls as they happen (NEW!)
     3. Show tool results before the final response (NEW!)
-    
+
     We use stream_mode=["messages", "updates"] to get both:
     - "messages": The streaming text tokens (for real-time output)
     - "updates": Tool calls and results (for visualization)
@@ -145,10 +145,10 @@ async def main(message: cl.Message):
     # Retrieve agent and history from session (same pattern as Phase 3 and 4)
     agent = cl.user_session.get("agent")
     chat_history = cl.user_session.get("chat_history")
-    
+
     # Add user message to history (same pattern as Phase 4)
     chat_history.append({"role": "user", "content": message.content})
-    
+
     # Stream the response from the agent
     response_message = cl.Message(content="")
     full_response = ""
@@ -158,14 +158,16 @@ async def main(message: cl.Message):
 
     # Use agent.astream() with BOTH stream modes to get messages AND updates
     # This is the key difference from Phase 4 - we handle tool calls!
-    async for stream_mode, data in agent.astream({"messages": chat_history}, stream_mode=["messages", "updates"]):
-        
+    async for stream_mode, data in agent.astream(
+        {"messages": chat_history}, stream_mode=["messages", "updates"]
+    ):
+
         # Handle "updates" - these contain tool calls and results
         if stream_mode == "updates":
             for source, update in data.items():
                 if source in ("model", "tools"):
                     msg = update["messages"][-1]
-                    
+
                     # NEW: Detect when the agent decides to call a tool
                     if isinstance(msg, AIMessage) and msg.tool_calls:
                         for tool_call in msg.tool_calls:
@@ -174,7 +176,7 @@ async def main(message: cl.Message):
                             step.input = tool_call["args"]
                             await step.send()
                             steps[tool_call["id"]] = step
-                    
+
                     # NEW: Handle tool results
                     if isinstance(msg, ToolMessage):
                         tool_call_id = msg.tool_call_id

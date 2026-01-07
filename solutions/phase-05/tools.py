@@ -26,39 +26,35 @@ from langchain_core.tools import tool
 def get_weather(city: str) -> str:
     """
     Get the current weather for a city.
-    
+
     The agent will use this tool when users ask about weather.
     The docstring is CRITICAL - the agent reads it to understand:
     - What the tool does
     - What arguments to pass
     - What to expect as a result
-    
+
     Args:
         city: The name of the city to get weather for (e.g., "London", "Tokyo", "New York")
-    
+
     Returns:
         A string describing the current weather conditions.
     """
     # Get API key from environment variables
     api_key = os.getenv("WEATHER_API_KEY")
-    
+
     if not api_key or api_key == "your_weather_api_key_here":
         return "Error: Weather API key not configured. Please add WEATHER_API_KEY to your .env file."
-    
+
     try:
         # Call the WeatherAPI
         url = f"http://api.weatherapi.com/v1/current.json"
-        params = {
-            "key": api_key,
-            "q": city,
-            "aqi": "no"
-        }
-        
+        params = {"key": api_key, "q": city, "aqi": "no"}
+
         response = httpx.get(url, params=params, timeout=10.0)
         response.raise_for_status()
-        
+
         data = response.json()
-        
+
         # Extract relevant information
         location = data["location"]["name"]
         country = data["location"]["country"]
@@ -67,13 +63,13 @@ def get_weather(city: str) -> str:
         condition = data["current"]["condition"]["text"]
         humidity = data["current"]["humidity"]
         wind_kph = data["current"]["wind_kph"]
-        
+
         return f"""Weather for {location}, {country}:
 🌡️ Temperature: {temp_c}°C ({temp_f}°F)
 ☁️ Condition: {condition}
 💧 Humidity: {humidity}%
 💨 Wind: {wind_kph} km/h"""
-        
+
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 400:
             return f"Sorry, I couldn't find weather data for '{city}'. Please check the city name."
